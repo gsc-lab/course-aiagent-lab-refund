@@ -1,0 +1,3 @@
+-r requirements.txt
+# 선택 사항: LangGraph 비교 실습에서만 설치한다.
+langgraph==1.2.11
