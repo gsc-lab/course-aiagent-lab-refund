@@ -1,8 +1,8 @@
-"""LLM 경계 테스트: SDK 요청 형식, 오류 분류, 한도 예약, 응답 검증, 대화 이력 복구.
+"""LLM 경계 테스트: SDK 요청 형식, 오류 분류, 호출 횟수 선반영, 응답 검증, 대화 이력 복구.
 
 [설계] 모델의 해석 성능 대신 응답 형식 검증과 오류 처리 정책을 확인한다.
 잘못된 형식·거절·출력 잘림 응답에서 도구 호출이 0회인지,
-인증 오류를 재시도하지 않는지, 한도를 호출 전에 예약하는지를 본다.
+인증 오류를 재시도하지 않는지, 호출 횟수를 API 호출 전에 기록하는지를 본다.
 """
 import asyncio
 import json
@@ -32,7 +32,7 @@ class ClaudeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_sdk_request_and_json_response(self):
         # [설계] 실제 SDK를 통과하되 HTTP만 가로챈다. 모델 ID·thinking 비활성·JSON 스키마·
-        # temperature 미지정이라는 "호출 계약"이 바뀌면 여기서 잡힌다.
+        # temperature 미지정이라는 "요청 형식"이 바뀌면 여기서 잡힌다.
         def handle(request):
             payload = json.loads(request.content)
             self.assertEqual(payload['model'], MODEL)

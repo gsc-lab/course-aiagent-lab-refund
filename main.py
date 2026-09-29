@@ -23,7 +23,7 @@ def parser():
     result.add_argument("--output", type=Path, default=Path(__file__).parent / "artifacts", help="로그·체크포인트·환불 기록 DB 저장 폴더")
     result.add_argument("--resume", type=Path, help="저장한 체크포인트 파일")
     result.add_argument("--reply", help="waiting_input 상태에 대한 추가 답변")
-    # [설계] --scenario는 Tool 장애 주입, 아래 정책 인자는 Policy 한도다.
+    # [설계] --scenario는 Tool 장애 재현, 아래 정책 인자는 Policy 한도다.
     # 장애 시나리오와 대응 정책을 각각 설정해 같은 장애에서 정책별 결과를 비교한다.
     result.add_argument("--scenario", choices=["normal", "flaky", "down", "slow", "lost-response"], default="normal", help="모의 API 시나리오: 정상 / 일시 장애 / 지속 장애 / 지연 / 환불 후 응답 유실")
     result.add_argument("--pause-after", type=int, help="지정한 수의 노드 실행 후 저장·중단; --resume으로 재개 (python 엔진 전용)")
@@ -83,7 +83,7 @@ async def main():
                             llm_timeout_s=args.llm_timeout, max_llm_calls=args.max_llm_calls)
         except ValueError as exc:
             cli.error(str(exc))
-    # [설계] 조립 지점. State·Policy·산출물 폴더·Tool(환불 기록 DB·장애 시나리오)을 Runtime에 주입한다.
+    # [설계] 조립 지점. State·Policy·산출물 폴더·Tool(환불 기록 DB·장애 시나리오)을 Runtime 생성자에 전달한다.
     runtime = Runtime(state, policy, folder, MockAPI(folder / "refunds.sqlite3", args.scenario))
     if args.engine == "langgraph":
         from langgraph_version import run

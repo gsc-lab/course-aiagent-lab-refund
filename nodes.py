@@ -1,8 +1,8 @@
 """Node는 작업을, route는 다음 이동을 담당한다.
 
-[설계] 노드 계약
-  - 시그니처는 모두 async def node(state, runtime). 노드는 State만 읽고 쓴다.
-  - 외부 세계(LLM, 주문 API)에는 runtime.analyze_request / runtime.call로만 나간다.
+[설계] 노드 작성 규칙
+  - 함수 형태는 모두 async def node(state, runtime). 노드는 State만 읽고 쓴다.
+  - LLM과 주문 API는 runtime.analyze_request / runtime.call을 통해서만 호출한다.
     그래서 재시도·timeout·예산·로그·체크포인트 코드가 노드에는 한 줄도 없다.
     노드는 "업무"만, runtime은 "실행 정책"만 담당한다는 분리가 이 실습의 핵심이다.
   - 노드는 다음 노드를 정하지 않는다. 그 일은 아래 route가 한다.
@@ -36,8 +36,8 @@ async def lookup(state, runtime):
 
 
 async def assess(state, runtime):
-    # [설계] 판정 노드. I/O가 없는 순수 규칙이다. LLM에 맡기지 않는 이유:
-    # 결정론적이어야 하고, 테스트 가능해야 하며, 거절 사유를 설명할 수 있어야 한다.
+    # [설계] 판정 노드. 외부 호출 없이 주문 정보로 환불 조건을 검사한다.
+    # 같은 주문 정보에는 항상 같은 판정을 내리고, 테스트로 확인하며, 거절 사유를 설명할 수 있다.
     # reason을 State에 남겨 respond·로그·인계 파일이 같은 근거를 쓴다.
     order = state.order
     state.eligible = order["status"] == "delivered" and 0 <= order["days"] <= 7
@@ -52,10 +52,10 @@ async def refund(state, runtime):
     # 체크포인트가 환불 직전이어도 기존 환불 결과를 먼저 조회해 처리 여부를 확인한다.
     # [설계] 쓰기 노드의 "조회 후 쓰기(read-before-write)" 패턴.
     #   1) get_refund : 이전 실행이나 응답이 유실된 호출의 환불 기록을 DB에서 확인
-    #   2) 없을 때만 create_refund, 그것도 고객·주문번호로 만든 동일한 멱등성 키와 함께 호출
+    #   2) 없을 때만 create_refund, 그것도 고객·주문번호로 만든 동일한 중복 처리 방지 키와 함께 호출
     # 체크포인트 저장과 외부 쓰기는 한 트랜잭션이 아니므로 "쓰기 성공 후 저장 실패"가
     # 생길 수 있다. 1)의 조회로 기존 결과를 복원하고, DB의 고유 제약으로
-    # 같은 주문이나 멱등성 키의 환불 기록이 중복 저장되지 않게 한다.
+    # 같은 주문이나 중복 처리 방지 키의 환불 기록이 중복 저장되지 않게 한다.
     state.refund = await runtime.call(
         "get_refund", order_id=state.order_id, customer_id=state.customer_id
     )
@@ -69,7 +69,7 @@ async def refund(state, runtime):
 async def respond(state, runtime):
     # [설계] 응답 노드이자 정상 종료점. status를 completed로 바꾸는 유일한 곳이다.
     # completed는 "고객 안내 완료"이지 "환불 완료"가 아니다. 확인된 환불 결과는 state.refund에 저장된다.
-    # 환불 완료 문장은 반드시 Tool이 돌려준 영수증(refund_id)에 근거한다. 추측하지 않는다.
+    # 환불 완료 문장은 반드시 Tool이 돌려준 환불번호(refund_id)에 근거한다. 추측하지 않는다.
     if state.intent == "lookup":
         delivery_status = {"delivered": "배송 완료", "shipping": "배송 중"}.get(
             state.order["status"], state.order["status"]
@@ -85,7 +85,7 @@ async def respond(state, runtime):
     state.status = "completed"
 
 
-# [설계] 노드 레지스트리. runtime.step은 이 표에서 이름으로 노드를 찾고,
+# [설계] 노드 목록(이름 → 함수). runtime.step은 이 표에서 이름으로 노드를 찾고,
 # langgraph_version.py는 같은 표를 순회하며 add_node 한다.
 NODES = {"analyze": analyze, "lookup": lookup, "assess": assess, "refund": refund, "respond": respond}
 

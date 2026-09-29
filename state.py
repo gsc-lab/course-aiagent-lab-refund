@@ -32,17 +32,17 @@ class State:
     order: dict | None = None  # lookup이 채움: Tool 결과
     eligible: bool = False  # assess가 채움: 업무 규칙 판정
     reason: str = ""  # assess가 채움: 판정 근거를 State에 남겨야 응답·로그·인계에서 설명할 수 있다
-    refund: dict | None = None  # refund가 채움: 영수증. None이면 "환불이 확인되지 않음"
+    refund: dict | None = None  # refund가 채움: 환불번호와 금액. None이면 "환불이 확인되지 않음"
     response: str = ""  # respond(또는 입력 대기·인계 시)가 채움
     messages: list[dict] = field(default_factory=list)  # 고객 요청과 추가 답변
     # [설계] 대화 이력도 State다. 재개 후 LLM에 "지금까지의 대화"를 다시 줄 수 있어야
     # 최신 답변으로 정정·보완이 가능하다.
 
     # ── 실행 State: Policy 한도와 비교할 누적 사용량 ─────────────────────
-    llm_calls: int = 0  # LLM 호출 전 예약한 횟수. 도구 호출과 별도로 센다
+    llm_calls: int = 0  # LLM 호출 전에 미리 누적한 시도 횟수. 도구 호출과 별도로 센다
     input_tokens: int = 0
     output_tokens: int = 0
-    steps: int = 0  # Termination 가드(max_steps)와 비교
+    steps: int = 0  # 최대 단계 수(max_steps)와 비교
     tool_calls: int = 0  # 재시도 포함 총 호출 수
     cost_units: int = 0  # 실제 요금이 아닌 교육용 가상 비용
     elapsed_s: float = 0.0  # 입력 대기·프로세스 종료 시간은 제외한 순수 실행 시간

@@ -4,13 +4,13 @@
 다음 네 가지 실행 기능을 한 곳에서 처리한다.
   1) Execution Policy : 재시도·timeout·예산·단계 수·LLM 한도. 실행 전 한도를 확인하고 호출에 시간 제한을 적용한다
   2) Observability    : run_id로 묶인 구조화 로그(.trace.jsonl). 각 단계와 호출의 실행 내역을 기록한다
-  3) Checkpoint       : State + Policy를 원자적으로 저장. 재개·인계·감사의 근거
+  3) Checkpoint       : 임시 파일 작성 후 교체 방식으로 State + Policy를 저장. 재개와 담당자 확인에 사용
   4) Execution Loop   : status가 running인 동안 step()을 반복
 LangGraph로 바꿔도 1~3은 그대로 남고 4만 프레임워크가 대신한다(langgraph_version.py).
 
 호출 한 번의 공통 골격(analyze_request / call 모두 동일):
-  시간 확인 → 한도 확인 → 카운터 예약 → 체크포인트 → 호출(wait_for) →
-  성공: 로그 후 반환 / 일시 오류: 백오프 후 재시도 / 그 외: 그대로 전파
+  시간 확인 → 한도 확인 → 호출 횟수 선반영 → 체크포인트 → 호출(wait_for) →
+  성공: 로그 후 반환 / 일시 오류: 일정 시간 대기 후 재시도 / 그 외: 그대로 전파
 """
 import asyncio
 import json
@@ -32,7 +32,7 @@ class PolicyStop(Exception):
 
 
 def atomic_json(path, value):
-    # [설계] 체크포인트는 원자적으로 쓴다. 임시 파일에 쓴 뒤 rename하면
+    # [설계] 체크포인트는 임시 파일에 내용을 모두 쓴 뒤 기존 파일을 교체한다.
     # 대상 파일을 교체하기 전까지 기존 체크포인트를 유지한다. 전원 장애까지 보장하지는 않는다.
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -52,7 +52,7 @@ class Runtime:
         # 한 실행 단위로 묶어 추적할 수 있다.
         self.checkpoint = self.folder / f"{state.run_id}.checkpoint.json"
         self.trace = self.folder / f"{state.run_id}.trace.jsonl"
-        # [설계] 외부 의존성(API, LLM)은 주입 가능하게 둔다. 테스트는 고정 응답을 주입하고,
+        # [설계] API와 LLM 분석기를 생성자 인자로 받는다. 테스트에서는 고정 응답 구현을 전달하고,
         # 실행은 기본값을 쓴다. 노드 코드는 어느 쪽인지 모른다.
         self.api = api or MockAPI(self.folder / "refunds.sqlite3")
         self.analyzer = analyzer or ClaudeAnalyzer()
@@ -87,7 +87,7 @@ class Runtime:
         self.emit("checkpoint", path=self.checkpoint.name)
 
     def time_left(self):
-        # [설계] 전체 시간 가드. 단계 시작·호출 전·재시도 대기 전마다 호출해
+        # [설계] 전체 실행 시간 검사. 단계 시작·호출 전·재시도 대기 전마다 호출해
         # "남은 시간"을 돌려주고, 없으면 PolicyStop으로 즉시 인계한다.
         self.tick()
         remaining = self.policy.total_timeout_s - self.state.elapsed_s
@@ -111,7 +111,7 @@ class Runtime:
                 raise PolicyStop("Claude 재시도 한도 소진")
             if self.state.llm_calls >= self.policy.max_llm_calls:
                 raise PolicyStop("LLM 호출 수 제한 도달")
-            # [설계] "예약 후 호출". 카운터를 먼저 올리고 저장한 다음 호출한다.
+            # [설계] 호출 횟수를 먼저 늘려 저장한 다음 API를 호출한다.
             # 호출 도중 프로세스가 죽어도 체크포인트에는 "이미 1회 썼다"가 남아
             # 재개 시 한도를 우회하지 못한다. 요금이 발생했을 수 있는 호출은 반드시 센다.
             self.state.llm_calls += 1
@@ -149,7 +149,7 @@ class Runtime:
                 self.save()
                 if attempts >= self.policy.max_retries:
                     raise PolicyStop("Claude 재시도 한도 소진") from exc
-                # [설계] 지수 백오프. LLM은 최소 0.5초부터 시작해 서버 과부하를 더 키우지 않는다.
+                # [설계] 재시도 간 대기 시간을 두 배씩 늘린다(지수 백오프). LLM은 최소 0.5초부터 시작한다.
                 # 대기 시간이 남은 전체 시간을 넘으면 기다리지 않고 바로 인계한다.
                 delay = max(self.policy.backoff_s, 0.5) * (2 ** attempts)
                 if delay >= self.time_left():
@@ -164,8 +164,8 @@ class Runtime:
                 raise
 
     async def call(self, name, **arguments):
-        """재시도는 일시 장애와 timeout에만 적용하고, 호출 전에 예산을 예약한다."""
-        # [설계] 모든 Tool 호출이 통과하는 단일 관문. 노드는 runtime.call만 부르므로
+        """재시도는 일시 장애와 timeout에만 적용하고, 호출 전에 예상 비용을 누적 사용량에 반영한다."""
+        # [설계] 모든 Tool 호출에 공통 정책을 적용하는 함수. 노드는 runtime.call만 부르므로
         # 정책·로그·체크포인트를 도구마다 다시 구현할 필요가 없다.
         # attempts 키를 "노드.도구"로 두면 체크포인트에 시도 횟수가 남아 재개해도 이어진다.
         key = f"{self.state.current_node}.{name}"
@@ -176,7 +176,7 @@ class Runtime:
                 raise PolicyStop(f"{name}: 재시도 한도 소진")
             price = self.PRICES[name]
             # [설계] 사전 차단. 횟수·예산이 부족하면 호출을 "시작하지 않는다".
-            # 호출 후에 초과를 발견하면 이미 부작용(환불)이 일어난 뒤일 수 있다.
+            # 호출 후에 초과를 발견하면 이미 환불이 처리된 뒤일 수 있다.
             if self.state.tool_calls >= self.policy.max_tool_calls:
                 raise PolicyStop("도구 호출 수 제한 도달")
             if self.state.cost_units + price > self.policy.max_cost_units:
@@ -184,7 +184,7 @@ class Runtime:
             self.state.tool_calls += 1
             self.state.cost_units += price
             self.state.attempts[key] = attempts + 1
-            # 프로세스가 도중에 끝나도 예약한 횟수/예산을 체크포인트에 남긴다.
+            # 프로세스가 도중에 끝나도 미리 반영한 호출 횟수와 비용을 체크포인트에 남긴다.
             self.save()
             started = time.monotonic()
             self.emit("tool_start", tool=name, attempt=attempts + 1, arguments=arguments,
@@ -242,7 +242,7 @@ class Runtime:
         state.current_node = "end"
 
     async def step(self, expected_node=None):
-        """한 단계: guard → node → routing → state diff → checkpoint."""
+        """한 단계: 한도 검사 → 노드 실행 → 다음 노드 선택 → 상태 변경 기록 → 저장."""
         # [설계] "한 단계"의 정의. 노드 실행부터 다음 노드 선택·저장까지 처리하며,
         # Python 루프와 LangGraph 노드 래퍼가 똑같이 이 함수를 부른다.
         state = self.state
@@ -253,7 +253,7 @@ class Runtime:
         started = time.monotonic()
         outcome = "ok"
         try:
-            # [설계] guard: 노드를 실행하기 "전에" 시간·단계 한도를 검사한다.
+            # [설계] 노드를 실행하기 전에 시간·단계 한도를 검사한다.
             self.time_left()
             if state.steps >= self.policy.max_steps:
                 raise PolicyStop("최대 단계 수 도달")

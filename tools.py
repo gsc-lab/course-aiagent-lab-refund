@@ -5,8 +5,8 @@
   - 실패를 재시도 가능(TransientError) / 불가(ServiceError)로 분류해 던진다.
     runtime은 이 분류만 보고 재시도 여부를 정한다. Tool이 스스로 재시도하지 않는다.
   - 권한(본인 주문)과 업무 규칙(7일)을 Tool이 다시 검사한다. State는 조작될 수 있다.
-  - 쓰기 API는 멱등성 키를 받아 같은 요청의 중복 실행을 서버 쪽에서 막는다.
-  - scenario 인자로 장애를 주입해 정책(재시도·timeout·인계)을 재현 가능하게 시험한다.
+  - 쓰기 API는 중복 처리 방지 키를 받아 같은 요청의 중복 실행을 서버 쪽에서 막는다.
+  - scenario 인자로 장애를 재현해 정책(재시도·timeout·인계)을 재현 가능하게 시험한다.
 """
 import asyncio
 import sqlite3
@@ -39,7 +39,7 @@ class MockAPI:
     def __init__(self, database: Path, scenario: str = "normal"):
         self.database = database
         self.scenario = scenario
-        self.seen: dict[str, int] = {}  # 도구별 호출 횟수. 장애 주입과 테스트 검증에 사용
+        self.seen: dict[str, int] = {}  # 도구별 호출 횟수. 장애 재현과 테스트 검증에 사용
         database.parent.mkdir(parents=True, exist_ok=True)
         # [설계] 환불 기록은 프로그램 종료 후에도 SQLite 파일에 남는다.
         # 체크포인트(JSON)와 따로 저장하므로 재개 시 DB에서 실제 처리 여부를 확인한다.
@@ -51,7 +51,7 @@ class MockAPI:
                 idempotency_key TEXT NOT NULL UNIQUE)""")
 
     async def _before(self, tool: str):
-        # [설계] 장애 주입 지점. flaky(1회 실패 후 성공) / down(계속 실패) / slow(60초 지연).
+        # [설계] 장애를 재현하는 부분. flaky(1회 실패 후 성공) / down(계속 실패) / slow(60초 지연).
         # slow의 대기 중 호출 시간 제한에 도달하면 runtime의 wait_for가 코루틴을 취소한다.
         # 장애를 코드로 재현하여 재시도와 시간 제한이 의도대로 동작하는지 검증한다.
         self.seen[tool] = self.seen.get(tool, 0) + 1
@@ -74,7 +74,7 @@ class MockAPI:
         return {"order_id": order_id, **order}
 
     async def get_order(self, order_id: str, customer_id: str) -> dict:
-        # [설계] 읽기 도구. 부작용이 없어 재시도가 안전하다.
+        # [설계] 읽기 도구. 주문·환불 데이터를 변경하지 않으므로 재시도해도 중복 환불이 발생하지 않는다.
         await self._before("get_order")
         return self._owned_order(order_id, customer_id)
 
@@ -94,15 +94,15 @@ class MockAPI:
         await self._before("create_refund")
         order = self._owned_order(order_id, customer_id)
         # State를 조작해도 쓰기 API가 업무 규칙을 다시 확인한다.
-        # [설계] 쓰기 도구의 3중 방어: (1) 소유자 (2) 업무 규칙 재검증 (3) 멱등성 키 형식.
+        # [설계] 쓰기 도구의 3중 방어: (1) 소유자 (2) 업무 규칙 재검증 (3) 중복 처리 방지 키 형식.
         # assess 노드가 이미 판정했지만 Tool은 그 판정을 신뢰하지 않는다.
         if order["status"] != "delivered" or not 0 <= order["days"] <= 7:
             raise ServiceError("환불 조건 불충족: 배송 완료 후 7일 이내만 가능")
         if idempotency_key != f"refund:{customer_id}:{order_id}":
-            raise ServiceError("잘못된 멱등성 키")
+            raise ServiceError("중복 처리 방지 키가 고객·주문번호와 일치하지 않습니다.")
         refund_id = f"RF-{order_id}"
         # [설계] INSERT OR IGNORE: 같은 주문의 두 번째 삽입은 조용히 무시된다.
-        # 그래서 재시도·재개로 create_refund가 두 번 와도 환불 기록은 1건이고 응답도 같다(멱등).
+        # 그래서 재시도·재개로 create_refund가 두 번 와도 환불 기록은 1건이고 같은 환불번호와 금액을 반환한다.
         with closing(sqlite3.connect(self.database)) as db, db:
             db.execute(
                 "INSERT OR IGNORE INTO refunds VALUES (?, ?, ?, ?, ?)",

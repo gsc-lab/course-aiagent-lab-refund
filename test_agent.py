@@ -1,7 +1,7 @@
-"""실행 구조(정책·재시도·예산·체크포인트·멱등성) 테스트. LLM은 고정 응답으로 대체한다.
+"""실행 구조(정책·재시도·예산·체크포인트·중복 환불 방지) 테스트. LLM은 고정 응답으로 대체한다.
 
 [설계] Agent 테스트의 원칙
-  - 외부 의존성(LLM, API)은 주입·패치로 결정론적으로 만든다. 자연어 정확도는 여기서 다루지 않는다.
+  - 외부 의존성(LLM, API)은 고정 응답 구현을 전달하거나 교체해 결과를 일정하게 만든다. 자연어 정확도는 여기서 다루지 않는다.
   - 최종 응답과 함께 State·환불 기록 DB·로그·인계 파일을 검증한다.
     완료 응답이 있더라도 같은 주문의 환불 기록이 두 건이면 실패다.
   - 각 테스트는 설계 원칙 하나에 대응한다. 원칙이 바뀌면 어느 테스트가 깨질지 알 수 있어야 한다.
@@ -107,7 +107,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
 
     # ── Execution Policy: 재시도·timeout·예산·단계 ─────────────────────
     async def test_flaky_tool_retries(self):
-        # [설계] 일시 오류는 재시도로 흡수한다. attempts에 2회, 총 호출은 4회로 남는다.
+        # [설계] 일시 오류는 재시도하여 처리한다. attempts에 2회, 총 호출은 4회로 남는다.
         state = await self.make(scenario="flaky").run()
         self.assertEqual(state.status, "completed")
         self.assertEqual(state.attempts["lookup.get_order"], 2)
@@ -151,15 +151,15 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.refund_count(), 0)
 
     async def test_step_limit(self):
-        # [설계] Termination 가드. 단계 수 한도는 노드 실행 "전에" 검사되어 steps가 2를 넘지 않는다.
+        # [설계] 최대 단계 수 검사. 단계 수 한도는 노드 실행 "전에" 검사되어 steps가 2를 넘지 않는다.
         state = await self.make(max_steps=2).run()
         self.assertEqual(state.status, "escalated")
         self.assertEqual(state.steps, 2)
         self.assertEqual(self.refund_count(), 0)
 
-    # ── 멱등성과 복구: timeout ≠ 실패 ──────────────────────────────────
+    # ── 중복 환불 방지와 복구: 응답 시간 초과 후에도 처리됐을 수 있음 ──────────────────────────────────
     async def test_lost_response_does_not_duplicate(self):
-        # [설계] 1차 create_refund는 커밋 후 응답 유실(timeout). 같은 멱등성 키로 2차 시도 → 환불 기록 1건.
+        # [설계] 1차 create_refund는 커밋 후 응답 유실(timeout). 같은 중복 처리 방지 키로 2차 시도 → 환불 기록 1건.
         state = await self.make(scenario="lost-response", tool_timeout_s=0.02).run()
         self.assertEqual(state.status, "completed")
         self.assertEqual(state.attempts["refund.create_refund"], 2)
@@ -167,7 +167,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_uncertain_write_escalates_without_false_success(self):
         # [설계] 재시도 0회면 결과를 확인할 수 없다. DB에는 환불 기록이 있지만
-        # 영수증을 못 받았으므로 "환불 완료"라고 말하지 않고 인계한다. 단정 금지의 핵심 테스트.
+        # 환불 결과 응답을 받지 못했으므로 "환불 완료"라고 말하지 않고 인계한다. 단정 금지의 핵심 테스트.
         state = await self.make(scenario="lost-response", tool_timeout_s=0.02,
                                 max_retries=0).run()
         self.assertEqual(state.status, "escalated")
@@ -224,7 +224,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
 
     # ── Observability ─────────────────────────────────────────────────
     async def test_trace_has_observability_fields(self):
-        # [설계] 로그 계약. 이벤트 종류·실행 식별자 run_id·latency가 빠지면 실행을 설명할 수 없다.
+        # [설계] 로그의 필수 항목 검증. 이벤트 종류·실행 식별자 run_id·latency가 빠지면 실행을 설명할 수 없다.
         runtime = self.make(scenario="flaky")
         await runtime.run()
         events = [json.loads(line) for line in runtime.trace.read_text(encoding="utf-8").splitlines()]

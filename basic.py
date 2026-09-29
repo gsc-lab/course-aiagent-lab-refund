@@ -37,7 +37,7 @@ async def analyze(state, analyzer):
 
 
 def lookup(state):
-    # [설계] 조회 노드. 부작용이 없는 읽기 작업이므로 여러 번 반복해도 안전하다.
+    # [설계] 조회 노드. 주문 데이터를 변경하지 않는 조회 작업이므로 여러 번 반복해도 안전하다.
     state["order"] = ORDERS.get(state["order_id"])
 
 
@@ -49,7 +49,7 @@ def assess(state):
 
 def refund(state):
     # 이 예제는 메모리의 환불 여부만 변경하며 실제 환불이나 DB 저장은 하지 않는다.
-    # [설계] nodes.py에서는 기존 환불 기록을 먼저 조회하고, 없을 때만 멱등성 키로
+    # [설계] nodes.py에서는 기존 환불 기록을 먼저 조회하고, 없을 때만 중복 처리 방지 키로
     # 환불을 요청한다. tools.py에서 DB 저장과 중복 환불 방지를 학습한다.
     state["refunded"] = True
 
@@ -88,7 +88,7 @@ def route(state, node):
     return "end"
 
 
-# [설계] 노드 레지스트리(이름 → 함수). 루프는 이름만 알고 구현은 모른다.
+# [설계] 노드 목록(이름 → 함수). 루프는 이름만 알고 구현은 모른다.
 # LangGraph의 add_node(name, fn)가 만드는 것도 이 표다.
 NODES = {"analyze": analyze, "lookup": lookup, "assess": assess,
          "refund": refund, "respond": respond}
@@ -104,7 +104,7 @@ async def run(request, analyzer=None):
     # [설계] Execution Loop. 이 while이 곧 Agent 실행기이며, LangGraph의 graph.invoke가
     # 내부에서 하는 일도 본질적으로 "노드 실행 → 라우팅 → 반복"이다.
     # 이 루프에는 최대 단계 수·전체 시간 제한이 없다. route에 버그가 있으면 멈추지 않는다.
-    # runtime.step의 max_steps / total_timeout_s 가드가 그 빈틈을 메운다.
+    # runtime.step은 max_steps와 total_timeout_s를 검사해 실행을 제한한다.
     while current_node != "end":
         print(f"실행 노드: {current_node}")
         if current_node == "analyze":

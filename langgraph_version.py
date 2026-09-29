@@ -4,7 +4,7 @@
   바뀜 : runtime.run의 while 루프 → StateGraph + conditional edges + graph.ainvoke
   남음 : State(dataclass), NODES(업무), route(흐름), Runtime.step(정책·로그·체크포인트)
 프레임워크는 "노드 실행 → 다음 노드 결정 → 반복"이라는 실행기를 대신할 뿐이다.
-재시도·예산·멱등성·인계·Human-in-the-loop 같은 설계는 여전히 우리 코드에 있다.
+재시도·예산·중복 환불 방지·인계·Human-in-the-loop 같은 설계는 여전히 우리 코드에 있다.
 test_agent.LangGraphComparison이 두 엔진의 최종 State가 같음을 확인한다.
 """
 from dataclasses import asdict
@@ -54,8 +54,8 @@ async def run(runtime):
     runtime.emit("run_start", engine="langgraph")
     runtime.save()
     # [설계] graph.ainvoke가 runtime.run의 while을 대신한다.
-    # recursion_limit은 max_steps에 대응하는 프레임워크 쪽 종료 가드다. 우리 step 가드가
-    # 먼저 걸리도록 약간 여유(+5)를 둔다.
+    # recursion_limit은 max_steps에 대응하는 프레임워크의 반복 횟수 제한이다. Runtime.step의 단계 수 제한에
+    # 먼저 도달하도록 약간 여유(+5)를 둔다.
     result = await graph.ainvoke(
         asdict(runtime.state),
         config={"configurable": {"thread_id": runtime.state.run_id},

@@ -26,7 +26,7 @@ python basic.py "ORD-1002 환불"
 python basic.py "환불"
 ```
 
-그다음 `state.py`, `nodes.py`, `tools.py`로 이동한다. 외부 호출을 Tool로 분리하고 State를 dataclass로 선언한 이유를 설명한다. 주문·환불은 MockAPI로 통제하고, 요청 분석은 실제 Claude API를 호출한다. llm.py에서 메시지·출력 계약·검증을 확인한다.
+그다음 `state.py`, `nodes.py`, `tools.py`로 이동한다. 외부 호출을 Tool로 분리하고 State를 dataclass로 선언한 이유를 설명한다. 주문·환불은 MockAPI로 통제하고, 요청 분석은 실제 Claude API를 호출한다. llm.py에서 메시지·응답 형식·검증을 확인한다.
 
 질문: 모든 일을 하나의 함수에 넣으면 어느 단계가 실패했는지 어떻게 알 수 있을까? `route` 안에서 API를 호출하면 어떤 책임이 섞일까?
 
@@ -49,7 +49,7 @@ python basic.py "환불"
 
 완료 기준: 각 정책을 설정하고 경계값에서 도구 실행이 제한되는 것을 보여준다.
 
-## 4단계 — Observability
+## 4단계 — 실행 과정 확인(Observability)
 
 정상 실행과 flaky 실행 로그를 비교해 run_id, step, node, state_change, tool_start/end, tool_error, retry를 찾는다. 하나의 도구 호출에 여러 시도가 생기는 위치를 설명한다.
 
@@ -66,7 +66,7 @@ python basic.py "환불"
 
 ## 5단계 — 중복 처리와 복구
 
-새 출력 폴더에서 lost-response를 실행한다. 환불 API는 DB에 환불 기록을 저장한 뒤 응답 전달을 지연한다. wait_for가 시간 초과를 발생시켜도 이미 저장된 환불 기록은 취소되지 않는다. 같은 멱등성 키로 재시도하므로 해당 주문의 환불 기록은 한 건으로 유지된다.
+새 출력 폴더에서 lost-response를 실행한다. 환불 API는 DB에 환불 기록을 저장한 뒤 응답 전달을 지연한다. wait_for가 시간 초과를 발생시켜도 이미 저장된 환불 기록은 취소되지 않는다. 같은 중복 처리 방지 키로 재시도하므로 해당 주문의 환불 기록은 한 건으로 유지된다.
 
 그다음 `--retries 0`으로 새 폴더에서 실행한다. 이번에는 담당자 확인으로 끝나지만 DB에는 환불 기록이 남아 있을 수 있다. `test_uncertain_write_escalates_without_false_success`와 `test_restart_after_committed_write`를 읽고 왜 이 두 테스트가 필요한지 설명한다.
 
