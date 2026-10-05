@@ -1,0 +1,24 @@
+[project]
+name = "refund-agent"
+version = "0.1.0"
+description = "주문·환불 고객지원 Agent 실습 — Claude + 로컬 모의 주문 API"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic==1.8.0",
+    "python-dotenv>=1.2.4",
+]
+
+[project.optional-dependencies]
+# 선택 사항: LangGraph 비교 실습에서만 설치한다. (uv sync --extra langgraph)
+langgraph = [
+    "langgraph==1.2.11",
+]
+
+[project.scripts]
+refund-basic = "refund_agent.basic:cli"
+refund-agent = "refund_agent.main:cli"
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
