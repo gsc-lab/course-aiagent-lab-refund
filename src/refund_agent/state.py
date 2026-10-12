@@ -52,19 +52,28 @@ class State:
 
 @dataclass(frozen=True)
 class Policy:
-    # [설계] Execution Policy. 각 항목은 runtime.py에서 "호출 전에" 검사한다.
-    # 한도를 넘는 호출은 시작조차 하지 않는 것이 원칙이다(사후 차단이 아니라 사전 차단).
-    max_retries: int = 2  # 최초 1회 + 추가 2회. 도구 호출 또는 LLM 분석의 재시도 한도
-    tool_timeout_s: float = 0.2  # 도구 호출 1회의 상한
-    total_timeout_s: float = 120.0  # 입력 대기 시간 제외, 실행 시간 누적
-    max_steps: int = 12  # Termination: 라우팅 버그·무한 루프 방지
-    max_tool_calls: int = 10  # 재시도까지 포함한 총 도구 호출 수
-    max_cost_units: int = 20  # Budget: 도구별 가상 비용의 합계 상한
-    llm_timeout_s: float = 30.0  # LLM 호출 1회의 상한 (도구와 별도 관리)
-    max_llm_calls: int = 6  # LLM 호출 수 상한 (실제 과금 대상)
-    llm_max_tokens: int = 512  # 출력 토큰 상한
-    max_input_chars: int = 12000  # 입력 크기 상한. 대화가 길어져도 무한히 보내지 않는다
-    backoff_s: float = 0.01  # 재시도 대기 기본값. 시도마다 지수적으로 늘어난다 (runtime.call)
+    # [설계] Execution Policy. 모든 항목은 runtime.py에서 "호출 전에" 검사하며, 한도에 걸리면
+    # PolicyStop으로 인계한다. 한도를 넘는 호출은 시작조차 하지 않는다(사후 차단이 아니라 사전 차단).
+    # 횟수 한도는 재시도 < 총 호출 < 노드 수의 세 층, 시간 한도는 호출당 < 실행 전체의 두 층이다.
+
+    # ── 실행 전체: Runtime.step이 노드를 실행하기 전에 검사 ──────────────────
+    max_steps: int = 12  # 노드 실행 횟수 상한. route 버그로 무한 루프가 돌아도 여기서 끊긴다
+    total_timeout_s: float = 120.0  # 누적 실행 시간 상한(초). 입력 대기·종료 중 시간은 제외. 모든 호출 전과 재시도 대기 전에도 검사
+
+    # ── 주문 API 호출: Runtime.call (lookup·refund 노드) ─────────────────────
+    max_tool_calls: int = 10  # 재시도까지 포함한 총 호출 횟수 상한
+    max_cost_units: int = 20  # 가상 비용 합계 상한. 이번 호출 비용을 더해 비교하므로 환불(3) 직전에 끊기는 실험이 가능
+    tool_timeout_s: float = 0.2  # 호출 1회의 대기 상한(초). 남은 전체 시간과 비교해 작은 쪽을 wait_for에 적용
+
+    # ── Claude 호출: Runtime.analyze_request (analyze 노드). 실제 과금 대상이라 도구와 따로 센다 ──
+    max_llm_calls: int = 6  # 재시도까지 포함한 총 호출 횟수 상한
+    max_input_chars: int = 12000  # 대화 이력 총 글자 수 상한. 답변이 쌓여도 입력이 무한히 커지지 않게 한다
+    llm_max_tokens: int = 512  # 응답 출력 토큰 상한. 두 필드 JSON이라 충분하며, 넘치면 stop_reason이 달라져 거부된다
+    llm_timeout_s: float = 30.0  # 호출 1회의 대기 상한(초). SDK timeout과 바깥 wait_for 양쪽에 적용
+
+    # ── 재시도: call과 analyze_request 공통. 일시 오류·timeout에만 적용하고 권한·형식 오류는 재시도하지 않는다 ──
+    max_retries: int = 2  # 최초 1회 이후 추가 시도 횟수
+    backoff_s: float = 0.01  # 재시도 사이 대기 시간의 시작값(초). 시도마다 두 배. Claude는 최소 0.5초부터. 남은 전체 시간을 넘으면 기다리지 않고 인계
 
     def __post_init__(self):
         # [설계] 정책 값은 실행 전에 검증한다. 음수나 NaN은 한도 비교를 잘못 동작하게 할 수 있다.
