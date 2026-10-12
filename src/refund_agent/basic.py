@@ -22,8 +22,26 @@ ORDERS = {
     "ORD-1002": {"days": 20, "amount": 45000},
 }
 
+# [State] 노드들이 공유하는 dict. run이 모든 키를 초기화하고, 키마다 쓰는 노드는 하나다.
+#   request  (str)        고객 요청 원문. run이 넣는다.
+#   intent   (str)        "lookup" | "refund" | "unknown". analyze가 쓴다.
+#   order_id (str)        고객이 말한 주문번호. 없으면 "". analyze가 쓴다.
+#   order    (dict|None)  ORDERS 조회 결과 {"days", "amount"}. 없는 주문이면 None. lookup이 쓴다.
+#   eligible (bool)       환불 가능 여부(배송 후 7일 이내). assess가 쓴다.
+#   refunded (bool)       환불 처리 여부. refund가 쓴다.
+#   response (str)        고객에게 보낼 최종 메시지. respond가 쓴다.
+#
+# [경로] 모든 경로는 respond → end로 끝난다.
+#   조회             : analyze → lookup → respond
+#   환불 성공        : analyze → lookup → assess → refund → respond
+#   환불 불가        : analyze → lookup → assess → respond
+#   주문 없음        : analyze → lookup → respond
+#   의도 불명·번호 없음: analyze → respond
+
 
 async def analyze(state, analyzer):
+    # [노드] 읽기 request → 쓰기 intent, order_id
+    # [다음] order_id가 있고 intent가 unknown이 아니면 lookup, 아니면 respond
     # [설계] LLM 노드. 입력은 고객 요청, 출력은 {"intent", "order_id"} 두 값뿐이다.
     # LLM 응답은 parse_message에서 Python이 형식·허용값·주문번호 근거를 검증한 뒤에만
     # State에 들어간다. LLM이 State를 직접 쓰거나 Tool을 호출하는 경로는 없다.
@@ -37,17 +55,23 @@ async def analyze(state, analyzer):
 
 
 def lookup(state):
+    # [노드] 읽기 order_id → 쓰기 order (없는 주문이면 None)
+    # [다음] order가 있고 intent가 refund면 assess, 아니면 respond
     # [설계] 조회 노드. 주문 데이터를 변경하지 않는 조회 작업이므로 여러 번 반복해도 안전하다.
     state["order"] = ORDERS.get(state["order_id"])
 
 
 def assess(state):
+    # [노드] 읽기 order → 쓰기 eligible
+    # [다음] eligible이면 refund, 아니면 respond
     # [설계] 판정 노드. 업무 규칙(배송 후 7일)은 LLM이 아니라 코드가 결정한다.
     # 외부 호출 없이 State에 판정 결과를 저장하므로 입력과 결과를 쉽게 테스트할 수 있다.
     state["eligible"] = state["order"]["days"] <= 7
 
 
 def refund(state):
+    # [노드] 읽기 없음 → 쓰기 refunded
+    # [다음] 항상 respond
     # 이 예제는 메모리의 환불 여부만 변경하며 실제 환불이나 DB 저장은 하지 않는다.
     # [설계] nodes.py에서는 기존 환불 기록을 먼저 조회하고, 없을 때만 중복 처리 방지 키로
     # 환불을 요청한다. tools.py에서 DB 저장과 중복 환불 방지를 학습한다.
@@ -55,6 +79,8 @@ def refund(state):
 
 
 def respond(state):
+    # [노드] 읽기 intent, order_id, order, refunded → 쓰기 response
+    # [다음] 항상 end
     # [설계] 응답 노드. 최종 사용자 메시지는 한 곳에서만 만든다.
     # 여기서 분기 조건이 route와 중복 검사되는데, main 버전은 status(waiting_input /
     # completed / escalated)와 reason 필드를 두어 "왜 이 응답인지"를 State에 남긴다.
@@ -70,6 +96,24 @@ def respond(state):
         state["response"] = f"환불 완료: {state['order']['amount']:,}원 (모의 처리)"
     else:
         state["response"] = "환불 불가: 배송 완료 후 7일이 지났습니다."
+
+
+# [Graph] 노드 5개와 간선(edge) 8개. route(state, node)는 이 표를 코드로 옮긴 것이다.
+#   출발    → 도착     조건
+#   analyze → lookup   order_id가 있고 intent != unknown
+#   analyze → respond  그 외
+#   lookup  → assess   order가 있고 intent == refund
+#   lookup  → respond  그 외
+#   assess  → refund   eligible
+#   assess  → respond  그 외
+#   refund  → respond  (고정)
+#   respond → end      (고정)
+#
+#              ┌─▶ lookup ─┬─▶ assess ─┬─▶ refund ─┐
+#   analyze ───┤           │           │           ▼
+#              └───────────┴───────────┴────────▶ respond ──▶ end
+#
+# LangGraph에서 (고정) 간선은 add_edge, 조건이 있는 간선은 add_conditional_edges로 등록한다.
 
 
 def route(state, node):
@@ -98,6 +142,7 @@ async def run(request, analyzer=None):
     analyzer = analyzer or ClaudeAnalyzer()
     # 기본 예제는 구조 설명용이다. 실행 정책과 환불 기록 DB는 main.py에서 다룬다.
     # [설계] State 초기값. 모든 키를 처음부터 선언해 두면 노드가 "없는 키"를 만나지 않는다.
+    # 각 키의 뜻과 쓰는 노드는 위의 [State] 표를 본다.
     state = {"request": request, "intent": "", "order_id": None, "order": None,
              "eligible": False, "refunded": False, "response": ""}
     current_node = "analyze"
