@@ -8,9 +8,20 @@
   - 노드는 다음 노드를 정하지 않는다. 그 일은 아래 route가 한다.
   - 노드 이름 다섯 개는 WORKFLOW.md의 흐름도, LangGraph 그래프의 노드와 1:1로 대응한다.
 """
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, TypeAlias
+
+from refund_agent.state import NextNode, State
+
+if TYPE_CHECKING:
+    from refund_agent.runtime import Runtime
 
 
-async def analyze(state, runtime):
+# 업무 노드는 공유 State를 직접 수정하므로 await한 결과는 None이다.
+Node: TypeAlias = Callable[[State, "Runtime"], Awaitable[None]]
+
+
+async def analyze(state: State, runtime: "Runtime") -> None:
     # [설계] LLM 노드. runtime이 호출 횟수·시간·재시도를 통제하고 Python 검증을 마친
     # 결과만 돌려준다. 노드는 검증된 두 값을 State에 옮기는 일만 한다.
     result = await runtime.analyze_request()
@@ -27,7 +38,7 @@ async def analyze(state, runtime):
         state.response = "처리할 주문번호 하나를 ORD-1001 형식으로 알려 주세요."
 
 
-async def lookup(state, runtime):
+async def lookup(state: State, runtime: "Runtime") -> None:
     # [설계] Tool 노드(읽기). runtime.call을 거치므로 timeout·재시도·비용이 자동 적용된다.
     # customer_id를 함께 넘겨 "본인 주문인지"는 Tool이 검사한다. 권한 검사는 Tool의 책임이다.
     state.order = await runtime.call(
@@ -35,7 +46,7 @@ async def lookup(state, runtime):
     )
 
 
-async def assess(state, runtime):
+async def assess(state: State, runtime: "Runtime") -> None:
     # [설계] 판정 노드. 외부 호출 없이 주문 정보로 환불 조건을 검사한다.
     # 같은 주문 정보에는 항상 같은 판정을 내리고, 테스트로 확인하며, 거절 사유를 설명할 수 있다.
     # reason을 State에 남겨 respond·로그·인계 파일이 같은 근거를 쓴다.
@@ -48,7 +59,7 @@ async def assess(state, runtime):
     )
 
 
-async def refund(state, runtime):
+async def refund(state: State, runtime: "Runtime") -> None:
     # 체크포인트가 환불 직전이어도 기존 환불 결과를 먼저 조회해 처리 여부를 확인한다.
     # [설계] 쓰기 노드의 "조회 후 쓰기(read-before-write)" 패턴.
     #   1) get_refund : 이전 실행이나 응답이 유실된 호출의 환불 기록을 DB에서 확인
@@ -66,7 +77,7 @@ async def refund(state, runtime):
         )
 
 
-async def respond(state, runtime):
+async def respond(state: State, runtime: "Runtime") -> None:
     # [설계] 응답 노드이자 정상 종료점. status를 completed로 바꾸는 유일한 곳이다.
     # completed는 "고객 안내 완료"이지 "환불 완료"가 아니다. 확인된 환불 결과는 state.refund에 저장된다.
     # 환불 완료 문장은 반드시 Tool이 돌려준 환불번호(refund_id)에 근거한다. 추측하지 않는다.
@@ -87,10 +98,12 @@ async def respond(state, runtime):
 
 # [설계] 노드 목록(이름 → 함수). runtime.step은 이 표에서 이름으로 노드를 찾고,
 # langgraph_version.py는 같은 표를 순회하며 add_node 한다.
-NODES = {"analyze": analyze, "lookup": lookup, "assess": assess, "refund": refund, "respond": respond}
+NODES: dict[str, Node] = {
+    "analyze": analyze, "lookup": lookup, "assess": assess, "refund": refund, "respond": respond,
+}
 
 
-def route(state, finished_node):
+def route(state: State, finished_node: str) -> NextNode:
     # [설계] Routing 우선순위: (1) 종료·대기 status → (2) 그래프 구조.
     # status 검사를 먼저 두면 어떤 노드에서 대기·인계가 발생해도 같은 규칙으로 멈춘다.
     if state.status == "waiting_input":

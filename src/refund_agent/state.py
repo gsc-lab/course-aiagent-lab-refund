@@ -10,7 +10,14 @@ Policy는 State와 달리 실행 중 바뀌지 않는 "한도"다. frozen으로 
 실수로 변경하는 일을 막고, 체크포인트에 함께 저장해 재개 시에도 같은 한도를 유지한다.
 """
 from dataclasses import dataclass, field
+from typing import Literal, TypeAlias
 from uuid import uuid4
+
+
+# 업무 노드 이름과 루프의 종료 표식. LangGraph의 END("__end__")와는 구분한다.
+NodeName: TypeAlias = Literal["analyze", "lookup", "assess", "refund", "respond"]
+NextNode: TypeAlias = NodeName | Literal["end"]
+RunStatus: TypeAlias = Literal["running", "waiting_input", "completed", "escalated"]
 
 
 @dataclass
@@ -23,8 +30,8 @@ class State:
 
     # ── 실행 State: 어디까지 왔고 어떤 상태인가 ──────────────────────────
     run_id: str = field(default_factory=lambda: uuid4().hex)  # 로그·체크포인트·인계 파일을 연결하는 실행 식별자
-    current_node: str = "analyze"  # 재개 시 이 노드부터 다시 실행한다
-    status: str = "running"  # running / waiting_input / completed / escalated (WORKFLOW.md 표 참고)
+    current_node: NextNode = "analyze"  # 재개 시 이 노드부터 다시 실행한다
+    status: RunStatus = "running"  # 실행·대기·완료·인계 (WORKFLOW.md 표 참고)
 
     # ── 업무 State: 노드가 순서대로 채워 가는 업무 결과 ──────────────────
     intent: str = ""  # analyze가 채움: lookup / refund / unknown

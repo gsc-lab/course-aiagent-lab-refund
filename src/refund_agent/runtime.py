@@ -241,7 +241,7 @@ class Runtime:
         self.emit("escalation", reason=reason)
         state.current_node = "end"
 
-    async def step(self, expected_node=None):
+    async def step(self, expected_node: str | None = None) -> None:
         """한 단계: 한도 검사 → 노드 실행 → 다음 노드 선택 → 상태 변경 기록 → 저장."""
         # [설계] "한 단계"의 정의. 노드 실행부터 다음 노드 선택·저장까지 처리하며,
         # Python 루프와 LangGraph 노드 래퍼가 똑같이 이 함수를 부른다.
@@ -284,7 +284,7 @@ class Runtime:
         })
         self.save()  # 매 단계 끝에 체크포인트. 다음 단계부터 재개 가능
 
-    async def run(self, pause_after=None):
+    async def run(self, pause_after: int | None = None) -> State:
         # 이것이 순수 Python Execution Loop다.
         # [설계] basic.py의 while과 비교하라. 종료 조건이 "current_node != end"가 아니라
         # "status == running"이다. 대기·완료·인계가 모두 같은 조건으로 루프를 멈춘다.
@@ -306,7 +306,7 @@ class Runtime:
         return self.state
 
 
-def load_checkpoint(path: Path):
+def load_checkpoint(path: Path) -> tuple[State, Policy]:
     # [설계] 재개의 입구. 버전을 확인한 뒤 State와 Policy를 함께 복원한다.
     # 재개 후에는 이 두 값으로 새 Runtime을 만들면 current_node부터 이어서 실행된다.
     value = json.loads(path.read_text(encoding="utf-8"))

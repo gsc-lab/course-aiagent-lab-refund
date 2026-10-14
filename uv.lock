@@ -863,6 +863,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
+    { name = "langgraph" },
     { name = "python-dotenv" },
 ]
 
@@ -874,6 +875,7 @@ langgraph = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = "==1.8.0" },
+    { name = "langgraph", specifier = ">=1.2.11" },
     { name = "langgraph", marker = "extra == 'langgraph'", specifier = "==1.2.11" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
 ]

@@ -8,12 +8,25 @@
 test_agent.LangGraphComparison이 두 엔진의 최종 State가 같음을 확인한다.
 """
 from dataclasses import asdict
+from collections.abc import Awaitable, Callable
+from typing import Any, Literal, TYPE_CHECKING, TypeAlias
 
 from refund_agent.nodes import NODES
-from refund_agent.state import State
+from refund_agent.state import NextNode, State
+
+if TYPE_CHECKING:
+    from langgraph.graph import StateGraph
+    from langgraph.graph.state import CompiledStateGraph
+    from refund_agent.runtime import Runtime
 
 
-async def run(runtime):
+# asdict(State)는 필드마다 값 타입이 다른 dict를 반환한다.
+# 업무 노드(State 직접 수정 → None)를 LangGraph 노드(State → 갱신 dict)로 감싼다.
+GraphNode: TypeAlias = Callable[[State], Awaitable[dict[str, Any]]]
+GraphDestination: TypeAlias = NextNode | Literal["__end__"]
+
+
+async def run(runtime: "Runtime") -> State:
     try:
         from langgraph.graph import END, START, StateGraph
         from langgraph.checkpoint.memory import InMemorySaver
@@ -23,19 +36,19 @@ async def run(runtime):
     # 그래프에도 analyze / lookup / assess / refund / respond가 각각 드러난다.
     # [설계] 그래프 State 스키마로 우리 dataclass를 그대로 쓴다. 프레임워크에 맞춰
     # State를 다시 정의하지 않는 것이 "같은 설계를 다른 실행기로" 옮기는 요령이다.
-    builder = StateGraph(State)
+    builder: StateGraph[State] = StateGraph(State)
 
-    def wrap(name):
+    def wrap(name: str) -> GraphNode:
         # [설계] 어댑터. LangGraph 노드는 (State → State 갱신분)을 반환해야 하므로
         # 우리 Runtime.step을 감싸 형식만 맞춘다. 정책·로그·체크포인트는 step 안에 그대로 있다.
         # expected_node 검사로 "그래프가 고른 노드"와 "State의 current_node"가 어긋나면 드러난다.
-        async def node(graph_state):
+        async def node(graph_state: State) -> dict[str, Any]:
             runtime.state = graph_state
             await runtime.step(expected_node=name)
             return asdict(runtime.state)
         return node
 
-    def next_node(graph_state):
+    def next_node(graph_state: State) -> GraphDestination:
         # [설계] conditional edge = 우리 route 함수의 결과 읽기. step이 이미 current_node를
         # 갱신해 두었으므로 여기서는 그 값을 프레임워크에 알려 주기만 한다.
         # running이 아니면(대기·완료·인계) END로 보내 루프를 멈춘다.
@@ -50,13 +63,13 @@ async def run(runtime):
     builder.add_conditional_edges(START, next_node, destinations)  # 재개 시 current_node부터 시작
     # [설계] InMemorySaver는 프로세스가 끝나면 사라진다. 파일 체크포인트(runtime.save)와
     # 수명이 다르다는 점을 6단계 질문에서 다룬다. 프로그램 종료 후에도 보관하려면 SQLite/Postgres 체크포인터를 사용한다.
-    graph = builder.compile(checkpointer=InMemorySaver())
+    graph: CompiledStateGraph[State] = builder.compile(checkpointer=InMemorySaver())
     runtime.emit("run_start", engine="langgraph")
     runtime.save()
     # [설계] graph.ainvoke가 runtime.run의 while을 대신한다.
     # recursion_limit은 max_steps에 대응하는 프레임워크의 반복 횟수 제한이다. Runtime.step의 단계 수 제한에
     # 먼저 도달하도록 약간 여유(+5)를 둔다.
-    result = await graph.ainvoke(
+    result: dict[str, Any] = await graph.ainvoke(
         asdict(runtime.state),
         config={"configurable": {"thread_id": runtime.state.run_id},
                 "recursion_limit": runtime.policy.max_steps + 5},
