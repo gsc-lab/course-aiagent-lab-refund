@@ -54,6 +54,22 @@ API 키는 이 폴더의 `.env` 파일에 `ANTHROPIC_API_KEY=발급받은_API_�
 
 환불 가능 여부만 묻는 요청을 실제 환불 명령으로 해석하지 않도록 지시한다. 이 경우 현재 두 업무의 범위에서는 확인 질문을 한다. JSON 스키마 검증이 의미 해석의 정확성까지 보장하지는 않는다.
 
+### LangGraph 기초 예제
+
+`langgraph_version.py`를 읽기 전에 LangGraph 문법만 따로 익히는 파일이다. Agent 코드와 무관하게 단독으로 실행되고 Claude를 호출하지 않는다. 번호 순서대로 읽는다. 각 파일 첫머리에 이전 파일과 달라진 점을 적어 두었다.
+
+| 파일 | 배우는 것 |
+|---|---|
+| `basic_lg_1_sequence.py` | State(TypedDict)·Node·Edge·invoke. START → 노드 → 노드 → END 순차 실행 |
+| `basic_lg_2_branch.py` | `add_conditional_edges`로 State 값에 따라 분기 |
+| `basic_lg_3_loop.py` | 조건부 간선을 자기 자신으로 돌려 반복. `recursion_limit` |
+| `basic_lg_4_reducer.py` | `Annotated[list, operator.add]`로 덮어쓰기 대신 누적 |
+| `basic_lg_5_dataclass.py` | State를 dataclass로 선언. `state.score`로 읽고, 결과는 dict |
+
+```powershell
+uv run python src/refund_agent/basic_lg_1_sequence.py
+```
+
 ## 명령과 옵션
 
 ```
