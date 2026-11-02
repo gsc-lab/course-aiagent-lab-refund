@@ -7,7 +7,7 @@
   operator.add이므로 기존 리스트 + 새 리스트. 노드는 이번에 추가할 항목만 반환하면 된다.
   대화 메시지처럼 실행마다 쌓여야 하는 데이터는 이 방식으로 선언한다.
 
-실행: uv run python src/refund_agent/basic_lg_4_reducer.py
+실행: uv run python src/refund_agent/langgraph_basics/04_reducer.py
 """
 import operator
 from typing import Annotated, Literal, TypedDict, cast

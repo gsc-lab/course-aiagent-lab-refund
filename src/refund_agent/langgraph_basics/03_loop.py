@@ -8,7 +8,7 @@
 주의: route가 계속 "again"만 돌려주면 끝나지 않는다. LangGraph는 recursion_limit(기본 25단계)을
       넘으면 GraphRecursionError를 던져 무한 루프를 막는다.
 
-실행: uv run python src/refund_agent/basic_lg_3_loop.py
+실행: uv run python src/refund_agent/langgraph_basics/03_loop.py
 """
 from typing import Literal, TypedDict, cast
 

@@ -1,6 +1,6 @@
 """LangGraph 기초 1: 순차 실행 — 노드 두 개를 Edge로 잇는다.
 
-다섯 예제 모두 State / Node / Graph / 실행, 네 부분을 같은 순서로 적는다.
+여덟 예제 모두 State / Node / Graph / 실행, 네 부분을 같은 순서로 적는다.
 이 파일은 분기 없이 START → greet → emphasize → END 한 줄로 흐른다.
 
   State  : 노드들이 공유하는 데이터. TypedDict로 키와 타입을 선언한다.
@@ -8,7 +8,7 @@
   Edge   : 어떤 노드 다음에 어떤 노드를 실행할지 고정으로 연결한다.
   invoke : 초기 State를 넣으면 노드를 차례로 실행하고 최종 State를 돌려준다.
 
-실행: uv run python src/refund_agent/basic_lg_1_sequence.py
+실행: uv run python src/refund_agent/langgraph_basics/01_sequence.py
 """
 from typing import TypedDict, cast
 

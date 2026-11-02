@@ -6,7 +6,7 @@
   route의 반환값("pass"/"retry")과 노드 이름("passed"/"retry")은 다른 것이다.
   둘을 이어 주는 것이 path_map 딕셔너리다.
 
-실행: uv run python src/refund_agent/basic_lg_2_branch.py
+실행: uv run python src/refund_agent/langgraph_basics/02_branch.py
 """
 from typing import Literal, TypedDict, cast
 

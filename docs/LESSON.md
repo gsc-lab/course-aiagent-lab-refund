@@ -74,7 +74,7 @@ uv run refund-basic "환불"
 
 ## 6단계 — 같은 예제를 LangGraph로 구현
 
-이제 `uv sync --extra langgraph`로 LangGraph를 설치하고 `langgraph_version.py`를 읽는다. 이미 이해한 업무 노드와 실행 정책을 유지하면서 StateGraph에 노드를 하나씩 연결한다.
+이제 `uv sync --extra langgraph`로 LangGraph를 설치한다. LangGraph 문법이 처음이라면 `src/refund_agent/langgraph_basics/`의 `01_sequence.py`부터 `08_parallel_reducer.py`까지 번호 순서로 실행하고 읽는다. 그다음 `langgraph_version.py`를 읽는다. 이미 이해한 업무 노드와 실행 정책을 유지하면서 StateGraph에 노드를 하나씩 연결한다.
 
 질문: 어떤 반복 코드가 사라졌고, 어떤 업무 규칙과 API 처리는 그대로 남았는가? 메모리 체크포인터와 파일 체크포인트의 수명은 어떻게 다른가?
 

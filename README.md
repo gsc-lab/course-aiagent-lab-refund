@@ -24,6 +24,7 @@ API 키는 이 폴더의 `.env` 파일에 `ANTHROPIC_API_KEY=발급받은_API_�
 | 경로 | 내용 |
 |---|---|
 | `src/refund_agent/` | Agent 소스 (아래 "코드를 읽는 순서"의 파일) |
+| `src/refund_agent/langgraph_basics/` | LangGraph 문법 기초 예제 01~08 (아래 "LangGraph 기초 예제") |
 | `tests/` | 고정 응답 기반 테스트 |
 | `docs/` | `LESSON.md` 수업 진행, `WORKFLOW.md` 흐름도, `VALIDATION.md` 검증 기록 |
 | `pyproject.toml`, `uv.lock` | 의존성 선언과 고정 버전 |
@@ -56,18 +57,21 @@ API 키는 이 폴더의 `.env` 파일에 `ANTHROPIC_API_KEY=발급받은_API_�
 
 ### LangGraph 기초 예제
 
-`langgraph_version.py`를 읽기 전에 LangGraph 문법만 따로 익히는 파일이다. Agent 코드와 무관하게 단독으로 실행되고 Claude를 호출하지 않는다. 번호 순서대로 읽는다. 각 파일 첫머리에 이전 파일과 달라진 점을 적어 두었다.
+`langgraph_version.py`를 읽기 전에 LangGraph 문법만 따로 익히는 파일이다. `src/refund_agent/langgraph_basics/` 폴더에 있다. Agent 코드와 무관하게 단독으로 실행되고 Claude를 호출하지 않는다. 번호 순서대로 읽는다. 각 파일 첫머리에 이전 파일과 달라진 점을 적어 두었다.
 
 | 파일 | 배우는 것 |
 |---|---|
-| `basic_lg_1_sequence.py` | State(TypedDict)·Node·Edge·invoke. START → 노드 → 노드 → END 순차 실행 |
-| `basic_lg_2_branch.py` | `add_conditional_edges`로 State 값에 따라 분기 |
-| `basic_lg_3_loop.py` | 조건부 간선을 자기 자신으로 돌려 반복. `recursion_limit` |
-| `basic_lg_4_reducer.py` | `Annotated[list, operator.add]`로 덮어쓰기 대신 누적 |
-| `basic_lg_5_dataclass.py` | State를 dataclass로 선언. `state.score`로 읽고, 결과는 dict |
+| `01_sequence.py` | State(TypedDict)·Node·Edge·invoke. START → 노드 → 노드 → END 순차 실행 |
+| `02_branch.py` | `add_conditional_edges`로 State 값에 따라 분기 |
+| `03_loop.py` | 조건부 간선을 자기 자신으로 돌려 반복. `recursion_limit` |
+| `04_reducer.py` | `Annotated[list, operator.add]`로 덮어쓰기 대신 누적 |
+| `05_dataclass.py` | State를 dataclass로 선언. `state.score`로 읽고, 결과는 dict |
+| `06_custom_reducer.py` | 직접 만든 함수를 reducer로. 초기 입력도 reducer를 거친다 |
+| `07_parallel.py` | 병렬 실행(fan-out / fan-in). superstep과 실행 순서 |
+| `08_parallel_reducer.py` | 병렬 노드가 같은 키에 쓰면 `InvalidUpdateError`. reducer로 해결. `add_edge([...], "x")` fan-in |
 
 ```powershell
-uv run python src/refund_agent/basic_lg_1_sequence.py
+uv run python src/refund_agent/langgraph_basics/01_sequence.py
 ```
 
 ## 명령과 옵션

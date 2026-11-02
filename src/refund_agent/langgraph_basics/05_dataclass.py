@@ -7,7 +7,7 @@
   invoke에 State(...) 인스턴스를 넘길 수 있다. 단, 결과는 dict로 돌아온다.
   state.py의 State가 dataclass이므로, 이 형태가 실제 Agent 코드(langgraph_version.py)와 가장 가깝다.
 
-실행: uv run python src/refund_agent/basic_lg_5_dataclass.py
+실행: uv run python src/refund_agent/langgraph_basics/05_dataclass.py
 """
 from dataclasses import dataclass
 from operator import add
