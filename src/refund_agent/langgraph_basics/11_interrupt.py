@@ -1,12 +1,12 @@
 """LangGraph 기초 11: interrupt — 노드 안에서 멈춰 사람의 답을 기다리고, Command(resume=)로 이어간다.
 
 9·10번과 달라진 점
-  노드 confirm이 interrupt(질문)를 호출하면 실행을 일시 중단하고 invoke가 호출자에게 결과를 반환한다.
-    이 예제의 반환 dict에는 "__interrupt__" 키가 생기고, 그 값은 Interrupt 객체를 담은 튜플이다.
+  노드 confirm이 interrupt(질문)를 호출하면 실행이 멈추고 invoke가 그 자리에서 돌아온다.
+    반환 dict에는 "__interrupt__" 키가 생기고, 그 값은 Interrupt 객체를 담은 튜플이다.
     호출자는 첫 객체의 .value에 담긴 질문을 사용자에게 보여 준다. interrupt가 직접 입력을 받는 것은 아니다.
     get_state(config).next는 ("confirm",)이다. "confirm을 아직 못 끝냈다"는 뜻이다.
   사람의 답은 같은 thread_id로 graph.invoke(Command(resume=답), config)를 호출해 전달한다.
-    Command(resume=...)는 11번 invoke의 인자이지 노드의 반환값이 아니다. 9번의 Command(goto=...)와 쓰는 자리가 다르다.
+    Command(resume=...)는 invoke의 인자이지 노드의 반환값이 아니다. 9번의 Command(goto=...)와 쓰는 자리가 다르다.
   재개하면 confirm이 "처음부터" 다시 실행된다. 이미 답을 받은 interrupt()는 resume 값을 그대로 반환한다.
     그래서 "confirm 실행"이 두 번 찍힌다. interrupt() 앞에 둔 코드는 두 번 실행된다는 뜻이다.
   멈춘 자리를 기억하려면 10번의 checkpointer와 thread_id가 반드시 있어야 한다.
@@ -22,7 +22,7 @@
 
 왜 필요한가
   runtime.py는 환불 전 담당자 확인을 "실행을 끝내고 인계 파일을 남긴 뒤, 다음 실행에서 --resume으로 재개"하는
-  순수 Python 방식으로 구현했다. interrupt()와 Command(resume=)는 이런 확인·재개 흐름을 구성하는 장치다.
+  순수 Python 방식으로 구현했다. interrupt()와 Command(resume=)는 같은 확인·재개 흐름을 LangGraph가 제공하는 장치다.
   이 예제는 사용자 입력 대신 resume="yes"를 코드에 지정하고, 같은 프로세스 안에서 바로 재개한다.
 
 실행: uv run python src/refund_agent/langgraph_basics/11_interrupt.py
@@ -64,8 +64,8 @@ def confirm(state: State) -> Command[Literal["refund", "cancel"]]:
     return Command(update={"decision": answer}, goto=next_node)
 
 
-# 승인 후 실행할 작업을 별도 노드로 분리한다. 이 예제는 실제 API 호출 없이 메시지만 반환한다.
-# confirm의 interrupt 재개 때문에 이 노드가 중복 실행되지는 않는다. 오류 후 재시도는 별개의 문제다.
+# 승인 뒤 할 작업은 별도 노드로 분리한다. confirm을 재개해도 이 노드는 다시 실행되지 않는다(오류 후 재시도는 별개).
+# 이 예제는 실제 API 호출 없이 메시지만 반환한다.
 def refund(state: State) -> StateUpdate:
     print("refund 실행")
     return {"message": f"{state['order_id']} 환불을 처리했습니다."}

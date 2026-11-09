@@ -3,8 +3,7 @@
 1번과 달라진 점
   add_edge(고정 연결) 대신 add_conditional_edges(조건부 연결)를 쓴다.
   분기 함수 route는 노드가 아니다. State를 바꾸지 않고 "어디로 갈지" 이름만 돌려준다.
-  route의 반환값("pass"/"retry")과 노드 이름("passed"/"retry")은 다른 것이다.
-  둘을 이어 주는 것이 path_map 딕셔너리다.
+  route의 반환값("pass"/"retry")과 노드 이름("passed"/"retry")은 별개다. 둘을 이어 주는 것이 path_map 딕셔너리다.
 
 실행: uv run python src/refund_agent/langgraph_basics/02_branch.py
 """

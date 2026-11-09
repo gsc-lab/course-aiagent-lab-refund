@@ -5,7 +5,7 @@
   둘이 모두 끝난 뒤 add에서 다시 합쳐진다(fan-in).
   fan-out: 같은 출발 노드에서 add_edge를 두 번 그린다. add_edge("load", "left"), add_edge("load", "right")
   fan-in : 같은 도착 노드로 add_edge를 두 번 그린다. add_edge("left", "add"), add_edge("right", "add")
-  left·right는 None을 반환한다. "State를 바꾸지 않는 노드"라는 뜻이며 출력만 한다. 실수가 아니다.
+  left·right는 None을 반환한다. State를 바꾸지 않고 출력만 하는 노드라는 뜻이다.
   left·right가 State에 쓰는 키가 없으니 충돌도 없다. 둘이 같은 키에 쓰면 어떻게 되는지는 8번에서 본다.
 
 superstep

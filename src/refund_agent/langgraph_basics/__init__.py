@@ -1,6 +1,6 @@
 """LangGraph 기초 예제 모음 — langgraph_version.py를 읽기 전에 LangGraph 문법만 따로 익힌다.
 
-Agent 코드와 무관하게 각 파일이 단독으로 실행되고 Claude를 호출하지 않는다.
+각 파일은 Agent 코드와 무관하게 단독으로 실행되며 Claude를 호출하지 않는다.
 번호 순서대로 읽는다. 각 파일 첫머리에 이전 파일과 달라진 점을 적어 두었다.
 
   01_sequence.py          순차 실행: State·Node·Edge·invoke

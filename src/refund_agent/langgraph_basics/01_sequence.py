@@ -27,8 +27,8 @@ class State(TypedDict):
     message: str  # greet가 쓰고, emphasize가 덧붙인다.
 
 
-# 노드 반환값은 전체 State가 아니라 변경할 필드만 담는 부분 갱신이다.
-# total=False: 어떤 키든 생략할 수 있다는 뜻.
+# 노드 반환값은 전체 State가 아니라 바꿀 필드만 담은 부분 갱신이다.
+# total=False: 모든 키를 생략할 수 있다는 뜻이다.
 class StateUpdate(TypedDict, total=False):
     name: str
     message: str

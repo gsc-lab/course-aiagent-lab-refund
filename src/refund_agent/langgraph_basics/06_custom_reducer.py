@@ -8,9 +8,9 @@
 
 실행 결과에서 확인할 것
   노드는 2개인데 add_score는 3번 호출된다.
-  첫 호출 add_score(0, 0)은 invoke의 초기 입력을 병합할 때다. 초기 입력도 "빈 State에 대한 갱신"으로
-  취급되어 reducer를 거친다. reducer가 붙은 필드는 초기값도 reducer 규칙으로 들어간다는 뜻이다.
-  (int 필드의 빈 값은 0, list 필드의 빈 값은 []다. 4번에서 history: []를 넣었을 때 [] + []가 일어났다.)
+  첫 호출 add_score(0, 0)은 invoke의 초기 입력을 병합할 때 일어난다.
+  초기 입력도 "빈 State에 대한 갱신"으로 취급되어 reducer를 거치기 때문이다.
+  (빈 값은 int 필드면 0, list 필드면 []다. 4번에서 history: []를 넣었을 때도 [] + []가 일어났다.)
 
 실행: uv run python src/refund_agent/langgraph_basics/06_custom_reducer.py
 """

@@ -6,13 +6,13 @@
   reducer 없이 한 단계에서 두 노드가 같은 키에 쓰면 LangGraph는 InvalidUpdateError를 던진다.
     "At key 'scores': Can receive only one value per step. Use an Annotated key to handle multiple values."
   한 단계에서 한 키는 한 번만 덮어쓸 수 있기 때문이다. scores에 reducer(merge_scores)를 붙이면
-  세 결과가 하나의 dict로 합쳐진다. 병렬로 모은 결과를 한 키에 담을 때 reducer는 거의 필수다.
+  세 결과가 하나의 dict로 합쳐진다. 병렬 결과를 한 키에 모을 때 reducer는 사실상 필수다.
   fan-in은 add_edge(["korean", "math", "english"], "summarize")처럼 출발 노드를 리스트로 적는다.
 
 add_edge의 리스트는 왜 출발 쪽에만 쓸 수 있나
   add_edge(["a", "b"], "c")는 "a와 b가 모두 끝날 때까지 기다린 뒤 c를 한 번 실행"이라는 대기(join) 규칙이다.
   7번처럼 간선을 따로 그리면 a와 b가 같은 단계에서 끝날 때만 c가 한 번 실행된다. 경로 길이가 다르면 두 번이다.
-  반대 방향 add_edge("a", ["b", "c"])는 간선 두 개를 줄여 쓴 것일 뿐 새 규칙이 없어서 제공하지 않는다.
+  반대 방향 add_edge("a", ["b", "c"])는 제공하지 않는다. 간선 두 개를 줄여 쓴 것일 뿐 새 규칙이 아니기 때문이다.
   (실행 시점에 개수가 정해지는 동적 fan-out은 Send 객체로 처리한다. 16번에서 다룬다.)
 
 실행 결과에서 확인할 것

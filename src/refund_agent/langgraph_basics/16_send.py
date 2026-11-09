@@ -8,7 +8,7 @@
     Send가 3개면 grade가 같은 단계(superstep)에서 3번 실행된다.
   2번의 분기 함수는 "어디로 갈지" 이름 하나를 반환했다. 여기서는 Send 객체의 리스트를 반환한다.
     add_conditional_edges(START, assign, ["grade"])의 세 번째 인자는 path_map이 아니라 가능한 목적지 목록이다.
-    Send에 이미 노드 이름이 들어 있어서 이름을 변환할 필요가 없다. 그래프 그림에 쓰인다.
+    Send에 노드 이름이 이미 들어 있어 변환은 필요 없고, 이 목록은 그래프를 그리고 검증하는 데 쓰인다.
 
 Send로 실행되는 노드의 입력
   grade가 받는 것은 그래프의 State가 아니라 Send의 두 번째 인자다. 그래서 인자 타입이 State가 아니라 Task다.
@@ -75,8 +75,8 @@ def assign(state: State) -> list[Send]:
 
 
 # 2. Node
-# Send로 실행되는 노드: 인자는 State가 아니라 Send에 담긴 Task다. 반환값은 State에 대한 부분 갱신이다.
-# 매개변수 이름은 다른 노드처럼 state로 둔다(add_node의 타입 검사가 이 이름을 요구한다). 타입이 Task라는 점이 다르다.
+# Send로 실행되는 노드: 인자는 State가 아니라 Send에 담긴 Task다. 반환값은 다른 노드처럼 State에 대한 부분 갱신이다.
+# 매개변수 이름은 state 그대로 둔다. add_node의 타입 검사가 이 이름을 요구하기 때문이다. 타입만 Task로 다르다.
 def grade(state: Task) -> StateUpdate:
     print(f"grade: {state}")
     score = len(state["subject"]) * 10  # 채점을 흉내 낸다: 과목 이름 길이 × 10

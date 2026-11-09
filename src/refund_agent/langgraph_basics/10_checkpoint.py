@@ -1,8 +1,8 @@
 """LangGraph 기초 10: Checkpoint — State와 실행 정보를 저장해 다음 호출에서 활용한다.
 
 1~9번과 달라진 점
-  지금까지는 invoke의 결과를 받을 수는 있었지만, 그래프가 그 State를 다음 호출에 자동으로 넘겨주지는 않았다.
-  compile(checkpointer=...)를 주면 LangGraph가 실행 단계(super-step)마다 체크포인트를 저장한다.
+  지금까지는 invoke가 끝나면 그래프가 State를 기억하지 않았다. 다음 호출은 매번 처음부터였다.
+  compile(checkpointer=...)를 주면 LangGraph가 실행 단계(superstep)마다 체크포인트를 저장한다.
     체크포인트에는 State뿐 아니라 다음에 실행할 노드 등 실행을 이어가는 데 필요한 정보도 담긴다.
   thread_id는 체크포인트를 모아 관리하는 실행 흐름의 식별자다. 대화형 앱에서는 보통 대화 하나에 대응한다.
     invoke의 config={"configurable": {"thread_id": ...}}로 어떤 흐름의 기록을 사용할지 지정한다.
@@ -72,10 +72,10 @@ thread_2: RunnableConfig = {"configurable": {"thread_id": "2"}}
 print(cast(State, graph.invoke({"count": 0, "history": []}, thread_1)))
 # {'count': 1, 'history': ['visit 1']}
 
-# 두 번째 invoke: 실행이 끝난 뒤 빈 dict를 주면 State 갱신 없이 START부터 다시 실행한다.
-# 저장된 count=1을 읽어 visit가 2로 올린다.
-# 실행 시 일부 키만 입력해도 되지만, 여기서는 입력 타입을 State로 선언했으므로 cast로 타입 검사를 맞춘다.
-# cast는 타입 검사기에만 영향을 준다. 실행 중 누락된 키를 채우거나 값을 검증하지 않는다.
+# 두 번째 invoke: 빈 dict를 주면 State를 바꾸지 않고 START부터 다시 실행한다.
+# 저장된 count=1을 visit가 2로 올린다.
+# 일부 키만 넣어도 실행에는 문제없다. 입력 타입이 State로 선언되어 있어 cast로 타입 검사만 맞춘다.
+# cast는 타입 검사기에만 영향을 준다. 누락된 키를 채우거나 값을 검증하지 않는다.
 print(cast(State, graph.invoke(cast(State, {}), thread_1)))
 # {'count': 2, 'history': ['visit 1', 'visit 2']}
 
@@ -89,7 +89,7 @@ print(cast(State, graph.invoke(cast(State, {"history": ["사용자 요청"]}), t
 print(cast(State, graph.invoke(None, thread_1)))
 # {'count': 3, 'history': ['visit 1', 'visit 2', '사용자 요청', 'visit 3']}   ← count가 그대로 3
 
-# get_state: 최신 체크포인트를 조회한다. 이 예제에서 next가 ()이면 남은 실행 노드가 없다는 뜻이다.
+# get_state: 최신 체크포인트를 조회한다. next가 ()이면 남은 노드가 없다는 뜻이다.
 snapshot: StateSnapshot = graph.get_state(thread_1)
 print("values:", snapshot.values)
 print("next:", snapshot.next)

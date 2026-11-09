@@ -6,7 +6,7 @@
   그래프는 4번(반복 + reducer)과 같다. 실행 방법만 invoke에서 stream으로 바꿨다.
   무엇을 받을지는 stream_mode로 고른다.
     "updates": 그 단계에서 실행된 노드와 그 노드가 반환한 갱신분. {노드 이름: 갱신분} 모양이다.
-               stream_mode를 생략하면 StateGraph는 "updates"로 동작한다.
+               생략하면 기본값은 "updates"다.
     "values" : 그 단계의 갱신이 병합된 뒤의 State 전체. 첫 값은 노드 실행 전의 입력 State다.
     ["updates", "values"]: 리스트로 주면 (모드 이름, 값) 튜플로 받는다. 어느 모드의 값인지 구분하기 위해서다.
   invoke의 반환값은 "values"로 받은 마지막 값과 같다.
