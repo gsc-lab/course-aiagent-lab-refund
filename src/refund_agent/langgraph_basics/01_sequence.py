@@ -1,6 +1,6 @@
 """LangGraph 기초 1: 순차 실행 — 노드 두 개를 Edge로 잇는다.
 
-여덟 예제 모두 State / Node / Graph / 실행, 네 부분을 같은 순서로 적는다.
+모든 예제는 State / Node / Graph / 실행, 네 부분을 같은 순서로 적는다.
 이 파일은 분기 없이 START → greet → emphasize → END 한 줄로 흐른다.
 
   State  : 노드들이 공유하는 데이터. TypedDict로 키와 타입을 선언한다.

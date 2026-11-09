@@ -24,7 +24,7 @@ API 키는 이 폴더의 `.env` 파일에 `ANTHROPIC_API_KEY=발급받은_API_�
 | 경로 | 내용 |
 |---|---|
 | `src/refund_agent/` | Agent 소스 (아래 "코드를 읽는 순서"의 파일) |
-| `src/refund_agent/langgraph_basics/` | LangGraph 문법 기초 예제 01~08 (아래 "LangGraph 기초 예제") |
+| `src/refund_agent/langgraph_basics/` | LangGraph 문법 기초 예제 01~16 (아래 "LangGraph 기초 예제") |
 | `tests/` | 고정 응답 기반 테스트 |
 | `docs/` | `LESSON.md` 수업 진행, `WORKFLOW.md` 흐름도, `VALIDATION.md` 검증 기록 |
 | `pyproject.toml`, `uv.lock` | 의존성 선언과 고정 버전 |
@@ -69,6 +69,14 @@ API 키는 이 폴더의 `.env` 파일에 `ANTHROPIC_API_KEY=발급받은_API_�
 | `06_custom_reducer.py` | 직접 만든 함수를 reducer로. 초기 입력도 reducer를 거친다 |
 | `07_parallel.py` | 병렬 실행(fan-out / fan-in). superstep과 실행 순서 |
 | `08_parallel_reducer.py` | 병렬 노드가 같은 키에 쓰면 `InvalidUpdateError`. reducer로 해결. `add_edge([...], "x")` fan-in |
+| `09_command.py` | 노드가 `Command(update=, goto=)`를 반환해 직접 분기. 분기 함수·path_map 없이 02와 같은 그래프 |
+| `10_checkpoint.py` | `compile(checkpointer=)`와 `thread_id`. 실행이 끝나도 State가 남고 다음 invoke가 이어간다. `get_state` |
+| `11_interrupt.py` | `interrupt()`로 멈춰 사람의 답을 기다리고 `Command(resume=)`로 재개. 노드가 처음부터 재실행된다 |
+| `12_async.py` | `async def` 노드와 `graph.ainvoke`. 같은 단계의 노드가 동시에 실행되는 것을 걸린 시간으로 확인 |
+| `13_stream.py` | `graph.stream`으로 단계마다 결과 받기. `stream_mode`의 `"updates"`와 `"values"` 차이 |
+| `14_retry.py` | `add_node(retry_policy=RetryPolicy(...))`로 실패한 노드만 다시 실행. `retry_on`으로 재시도할 예외 지정 |
+| `15_history.py` | `get_state_history`로 과거 체크포인트 조회. 그 지점부터 다시 실행하거나 `update_state`로 값을 고쳐 실행 |
+| `16_send.py` | `Send`로 실행 중에 정해지는 개수만큼 같은 노드를 병렬 실행(동적 fan-out). 08과 같은 구조를 노드 하나로 |
 
 ```powershell
 uv run python src/refund_agent/langgraph_basics/01_sequence.py
